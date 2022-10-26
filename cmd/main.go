@@ -29,9 +29,9 @@ func main() {
 	restoreCache()
 	nc, err := getNatsConn()
 
-	log.Printf("nats was connected - %t\n", nc.IsConnected())
 	if err == nil {
 		go NatsHandler(nc)
+		log.Printf("nats was connected - %t\n", nc.IsConnected())
 	} else {
 		log.Fatal("Could not connect to nats-streaming")
 		return
@@ -60,7 +60,7 @@ func restoreCache() {
 	if len(cache) < counter {
 		rows, err := db.Query("select order_data from orders")
 		if err != nil {
-			fmt.Println("error with query")
+			log.Println("error with query")
 		}
 
 		var order model.Order
@@ -68,7 +68,7 @@ func restoreCache() {
 			var jsStr string
 			err := rows.Scan(&jsStr)
 			if err != nil {
-				fmt.Println("error while scanning")
+				log.Println("error while scanning")
 			}
 			err = json.Unmarshal([]byte(jsStr), &order)
 			cache[order.OrderUid] = order
@@ -103,25 +103,23 @@ func getOrderById(writer http.ResponseWriter, request *http.Request) {
 
 func getOrderFromDB(id string) model.Order {
 	db := getDbConnection()
-	fmt.Println("get order from db")
+
 	rows, err := db.Query("select order_data from orders where order_uid = $1 limit 1", id)
 	if err != nil {
-		fmt.Println("error with query")
+		log.Println("error with query")
 	}
 
 	var order model.Order
 	for rows.Next() {
 		var jsStr string
 		err := rows.Scan(&jsStr)
-		fmt.Println("jsStr is")
-		fmt.Println(jsStr)
+
 		if err != nil {
-			fmt.Println("error while scanning")
+			log.Println("error while scanning")
 		}
 		err = json.Unmarshal([]byte(jsStr), &order)
 	}
-	fmt.Println("order loaded from db is")
-	fmt.Println(order)
+
 	return order
 }
 
