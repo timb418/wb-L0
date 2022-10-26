@@ -8,6 +8,7 @@ import (
 	"github.com/nats-io/nats.go"
 	"html/template"
 	"log"
+	"math/rand"
 	"nats-test/pkg/model"
 	"net/http"
 	"net/url"
@@ -26,7 +27,8 @@ const (
 func main() {
 	cache = make(map[string]model.Order)
 	restoreCache()
-	nc, err := nats.Connect("nats://localhost:4222")
+	nc, err := getNatsConn()
+
 	log.Printf("nats was connected - %t\n", nc.IsConnected())
 	if err == nil {
 		go NatsHandler(nc)
@@ -36,12 +38,17 @@ func main() {
 	}
 
 	http.HandleFunc("/getorderbyid", getOrderById)
+	http.HandleFunc("/insert", sendNatsMessage)
 
 	err = http.ListenAndServe(":8090", nil)
 	if err != nil {
 		return
 	}
 
+}
+
+func getNatsConn() (*nats.Conn, error) {
+	return nats.Connect("nats://localhost:4222")
 }
 
 func restoreCache() {
@@ -55,7 +62,6 @@ func restoreCache() {
 		if err != nil {
 			fmt.Println("error with query")
 		}
-		//fmt.Println(rows)
 
 		var order model.Order
 		for rows.Next() {
@@ -80,7 +86,6 @@ func getOrderById(writer http.ResponseWriter, request *http.Request) {
 	values := addr.Query()
 	id := values.Get("id")
 	var order model.Order
-	//order := getOrderFromDB(id)
 
 	if id != "" {
 		if cache[id].OrderUid != "" {
@@ -94,7 +99,6 @@ func getOrderById(writer http.ResponseWriter, request *http.Request) {
 	if err != nil {
 		log.Fatalf("Error with template: %v", err)
 	}
-
 }
 
 func getOrderFromDB(id string) model.Order {
@@ -106,7 +110,6 @@ func getOrderFromDB(id string) model.Order {
 	}
 
 	var order model.Order
-	//order := model.Order{}
 	for rows.Next() {
 		var jsStr string
 		err := rows.Scan(&jsStr)
@@ -148,5 +151,30 @@ func NatsHandler(nc *nats.Conn) {
 	})
 	if err != nil {
 		return
+	}
+}
+
+func randSeq(n int) string {
+	var letters = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
+	b := make([]rune, n)
+	for i := range b {
+		b[i] = letters[rand.Intn(len(letters))]
+	}
+	return string(b)
+}
+
+func sendNatsMessage(writer http.ResponseWriter, request *http.Request) {
+	randomUid := randSeq(20)
+	log.Println("random uid is " + randomUid)
+	orderJson := `{"order_uid":"` + randomUid + `","track_number":"WBILMTESTTRACK","entry":"WBIL","delivery":{"name":"TestTestov","phone":"+9720000000","zip":"2639809","city":"KiryatMozkin","address":"PloshadMira15","region":"Kraiot","email":"test@gmail.com"},"payment":{"transaction":"` + randomUid + `","request_id":"","currency":"USD","provider":"wbpay","amount":1817,"payment_dt":1637907727,"bank":"alpha","delivery_cost":1500,"goods_total":317,"custom_fee":0},"items":[{"chrt_id":9934930,"track_number":"WBILMTESTTRACK","price":453,"rid":"ab4219087a764ae0btest","name":"Mascaras","sale":30,"size":"0","total_price":317,"nm_id":2389212,"brand":"VivienneSabo","status":202}],"locale":"en","internal_signature":"","customer_id":"test","delivery_service":"meest","shardkey":"9","sm_id":99,"date_created":"2021-11-26T06:22:19Z","oof_shard":"1"}`
+	nc, err := getNatsConn()
+	if err == nil {
+		err := nc.Publish("foo", []byte(orderJson))
+		if err != nil {
+			log.Println("could not publish")
+			return
+		}
+	} else {
+		log.Println(err)
 	}
 }

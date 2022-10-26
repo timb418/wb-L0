@@ -1,2 +1,3 @@
 
 .idea/
+tests/nats_test.go
